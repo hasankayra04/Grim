@@ -140,39 +140,3 @@ jobs:
           git remote add codeberg "https://${CODEBERG_PAT}@codeberg.org/${CB_NAMESPACE}/${REPO_NAME}.git"
           git push --prune --force codeberg '+refs/mirror/*:refs/heads/*'
           git push codeberg --tags --force
-
-  # =====================================================================
-  # PART 4: MIRROR TO GITEA (Runs on push, branch deletion, schedule, or manual dispatch)
-  # [REMOVE THIS JOB ENTIRELY IF YOU DO NOT WANT GITEA MIRRORING]
-  # =====================================================================
-  mirror-gitea:
-    runs-on: ubuntu-latest
-    needs: [sync-upstream]
-    if: always() && (github.event_name == 'push' || (github.event_name == 'delete' && github.event.ref_type == 'branch') || ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (needs.sync-upstream.result == 'success' || needs.sync-upstream.result == 'skipped')))
-    steps:
-      - name: Checkout repository with full history
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.repository.default_branch }}
-
-      - name: Push to Gitea
-        env:
-          GITEA_USERNAME: ${{ secrets.GITEA_USERNAME }}
-          GITEA_PAT: ${{ secrets.GITEA_PAT }}
-        run: |
-          # Wait a few seconds for GitHub to fully index the newly pushed upstream commit
-          echo "Waiting 2 seconds for GitHub backend sync..."
-          sleep 2
-
-          # Ensure local checkout pulls the absolute latest remote state before mirroring
-          git fetch --prune origin '+refs/heads/*:refs/mirror/*'
-
-          GH_OWNER="${{ github.repository_owner }}"
-          REPO_NAME="${{ github.event.repository.name }}"
-
-          echo "Targeting Gitea namespace: https://gitea.com/$GH_OWNER/$REPO_NAME"
-
-          git remote add gitea "https://${GITEA_USERNAME}:${GITEA_PAT}@gitea.com/${GH_OWNER}/${REPO_NAME}.git"
-          git push --prune --force gitea '+refs/mirror/*:refs/heads/*'
-          git push gitea --tags --force
